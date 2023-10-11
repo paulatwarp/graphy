@@ -1,5 +1,9 @@
 # Graphy - Ultimate FPS Counter - Stats Monitor & Debugger (Unity)
 
+This is the same as the main version of Graphy here: https://github.com/Tayx94/graphy but with the FPS block displaying ms/f instead of fps, and the cpu and gpu times recorded separately. This only works on platforms that support CaptureFrameTimings() and the feature must be enabled in the player settings.
+
+(I also changed the way the average, 1%, and 0.1% values are computed - which uses a numerically stable calculation of the variance.)
+
 [![openupm](https://img.shields.io/npm/v/com.tayx.graphy?label=openupm&registry_uri=https://package.openupm.com)](https://openupm.com/packages/com.tayx.graphy/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-brightgreen.svg)](https://github.com/Tayx94/graphy/blob/master/LICENSE)
 [![Unity 2019.3+](https://img.shields.io/badge/unity-2019.3%2B-blue.svg)](https://unity3d.com/get-unity/download)
