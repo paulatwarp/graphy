@@ -11,26 +11,112 @@
  * Attribution is not required, but it is always welcomed!
  * -------------------------------------*/
 
-using System;
-using System.Xml.Linq;
 using UnityEngine;
-using Random = UnityEngine.Random;
 
 namespace Tayx.Graphy.Fps
 {
+    public class StatBuffer
+    {
+        float expected;
+        float [] values;
+        float offsetSum;
+        float offsetVarianceSum;
+        int front;
+        int back;
+        int size;
+
+        // shift is the expected mean of the values
+        public StatBuffer(int length, float expected)
+        {
+            this.expected = expected;
+            values = new float[length];
+            size = 0;
+            front = 0;
+            back = 0;
+            offsetSum = 0;
+            offsetVarianceSum = 0;
+        }
+
+        public void  Push(float value)
+        {
+            if (size == values.Length)
+            {
+                Pop();
+            }
+            else
+            {
+                values[back] = value;
+                back = (back + 1) % values.Length;
+                size++;
+                offsetSum += value - expected;
+                offsetVarianceSum += (value - expected) * (value - expected);
+            }
+        }
+
+        void Pop()
+        {
+            float value = values[front];
+            size--;
+            front = (front + 1) % values.Length;
+            offsetSum -= value - expected;
+            offsetVarianceSum -= (value - expected) * (value - expected);
+        }
+
+        public float Mean()
+        {
+            if (size > 0)
+            {
+                return expected + offsetSum / size;
+            }
+            else
+            {
+                return 0;
+            }
+        }
+
+        public float Variance()
+        {
+            if (size > 1)
+            {
+                return (offsetVarianceSum - offsetSum * offsetSum / size) / (size - 1);
+            }
+            else
+            {
+                return 0;
+            }   
+        }
+
+        public float StandardDeviation()
+        {
+            if (size > 0)
+            {
+                float variance = Variance();
+                if (variance >= 0)
+                {
+                    return Mathf.Sqrt(variance);
+                }
+                else
+                {
+                    return 0;
+                }
+            }
+            else
+            {
+                return 0;
+            }
+        }
+    }
+
     public class G_FpsMonitor : MonoBehaviour
     {
         #region Variables -> Private
 
-        private short[] m_fpsSamples;
-        private short[] m_fpsSamplesSorted;
-        private short m_fpsSamplesCapacity = 1024;
-        private short m_onePercentSamples = 10;
-        private short m_zero1PercentSamples = 1;
-        private short m_fpsSamplesCount = 0;
-        private short m_indexSample = 0;
+        private short m_fpsSamplesCapacity = 60;
+        StatBuffer fpsSamples;
+        StatBuffer cpuSamples;
+        StatBuffer gpuSamples;
 
-        private float m_unscaledDeltaTime = 0f;
+        FrameTiming [] frameTimings = new FrameTiming[1];
 
         #endregion
 
@@ -40,6 +126,14 @@ namespace Tayx.Graphy.Fps
         public short AverageFPS { get; private set; } = 0;
         public short OnePercentFPS { get; private set; } = 0;
         public short Zero1PercentFps { get; private set; } = 0;
+        public float CurrentCPU { get; private set; } = 0;
+        public float AverageCPU { get; private set; } = 0;
+        public float OnePercentCPU { get; private set; } = 0;
+        public float Zero1PercentCpu { get; private set; } = 0;
+        public float CurrentGPU { get; private set; } = 0;
+        public float AverageGPU { get; private set; } = 0;
+        public float OnePercentGPU { get; private set; } = 0;
+        public float Zero1PercentGpu { get; private set; } = 0;
 
         #endregion
 
@@ -52,73 +146,36 @@ namespace Tayx.Graphy.Fps
 
         private void Update()
         {
-            m_unscaledDeltaTime = Time.unscaledDeltaTime;
+            FrameTimingManager.CaptureFrameTimings();
+            FrameTimingManager.GetLatestTimings(1, frameTimings);
+            float cpuTime = (float)frameTimings[0].cpuFrameTime;
+            float gpuTime = (float)frameTimings[0].gpuFrameTime;
 
-            // Update fps and ms
+            // Update fps
+            CurrentFPS = (short) Mathf.RoundToInt( 1.0f / Time.deltaTime );
+            CurrentCPU = cpuTime;
+            CurrentGPU = gpuTime;
 
-            CurrentFPS = (short) (Mathf.RoundToInt( 1f / m_unscaledDeltaTime ));
+            fpsSamples.Push( CurrentFPS );
+            cpuSamples.Push( cpuTime );
+            gpuSamples.Push( gpuTime );
 
-            // Update avg fps
+            AverageCPU = cpuSamples.Mean();
+            float standardDeviation  = cpuSamples.StandardDeviation();
+            // 2.58 is the z-score for 99% confidence interval
+            OnePercentCPU = AverageCPU + standardDeviation * 2.58f;
+            // 3.29 is the z-score for 99.9% confidence interval
+            Zero1PercentCpu = AverageCPU + standardDeviation * 3.29f;
 
-            uint averageAddedFps = 0;
+            AverageGPU = gpuSamples.Mean();
+            standardDeviation = gpuSamples.StandardDeviation();
+            OnePercentGPU = AverageGPU + standardDeviation * 2.58f;
+            Zero1PercentGpu = AverageGPU + standardDeviation * 3.29f;
 
-            m_indexSample++;
-
-            if( m_indexSample >= m_fpsSamplesCapacity ) m_indexSample = 0;
-
-            m_fpsSamples[ m_indexSample ] = CurrentFPS;
-
-            if( m_fpsSamplesCount < m_fpsSamplesCapacity )
-            {
-                m_fpsSamplesCount++;
-            }
-
-            for( int i = 0; i < m_fpsSamplesCount; i++ )
-            {
-                averageAddedFps += (uint) m_fpsSamples[ i ];
-            }
-
-            AverageFPS = (short) ((float) averageAddedFps / (float) m_fpsSamplesCount);
-
-            // Update percent lows
-
-            m_fpsSamples.CopyTo( m_fpsSamplesSorted, 0 );
-
-            /*
-             * TODO: Find a faster way to do this.
-             *      We can probably avoid copying the full array every time
-             *      and insert the new item already sorted in the list.
-             */
-            Array.Sort( m_fpsSamplesSorted,
-                ( x, y ) => x.CompareTo( y ) ); // The lambda expression avoids garbage generation
-
-            bool zero1PercentCalculated = false;
-
-            uint totalAddedFps = 0;
-
-            short samplesToIterateThroughForOnePercent = m_fpsSamplesCount < m_onePercentSamples
-                ? m_fpsSamplesCount
-                : m_onePercentSamples;
-
-            short samplesToIterateThroughForZero1Percent = m_fpsSamplesCount < m_zero1PercentSamples
-                ? m_fpsSamplesCount
-                : m_zero1PercentSamples;
-
-            short sampleToStartIn = (short) (m_fpsSamplesCapacity - m_fpsSamplesCount);
-
-            for( short i = sampleToStartIn; i < sampleToStartIn + samplesToIterateThroughForOnePercent; i++ )
-            {
-                totalAddedFps += (ushort) m_fpsSamplesSorted[ i ];
-
-                if( !zero1PercentCalculated && i >= samplesToIterateThroughForZero1Percent - 1 )
-                {
-                    zero1PercentCalculated = true;
-
-                    Zero1PercentFps = (short) ((float) totalAddedFps / (float) m_zero1PercentSamples);
-                }
-            }
-
-            OnePercentFPS = (short) ((float) totalAddedFps / (float) m_onePercentSamples);
+            AverageFPS = (short) fpsSamples.Mean();
+            standardDeviation = fpsSamples.StandardDeviation();
+            OnePercentFPS = (short) Mathf.Max(AverageFPS - standardDeviation * 2.58f, 0f);
+            Zero1PercentFps = (short) Mathf.Max(AverageFPS - standardDeviation * 3.29f, 0f);
         }
 
         #endregion
@@ -127,8 +184,6 @@ namespace Tayx.Graphy.Fps
 
         public void UpdateParameters()
         {
-            m_onePercentSamples = (short) (m_fpsSamplesCapacity / 100);
-            m_zero1PercentSamples = (short) (m_fpsSamplesCapacity / 1000);
         }
 
         #endregion
@@ -137,10 +192,9 @@ namespace Tayx.Graphy.Fps
 
         private void Init()
         {
-            m_fpsSamples = new short[m_fpsSamplesCapacity];
-            m_fpsSamplesSorted = new short[m_fpsSamplesCapacity];
-
-            UpdateParameters();
+            fpsSamples = new StatBuffer(m_fpsSamplesCapacity, 30.0f);
+            cpuSamples = new StatBuffer(m_fpsSamplesCapacity, 0.033f);
+            gpuSamples = new StatBuffer(m_fpsSamplesCapacity, 0.033f);
         }
 
         #endregion

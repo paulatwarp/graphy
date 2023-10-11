@@ -14,6 +14,7 @@
 using UnityEngine;
 using UnityEngine.UI;
 using Tayx.Graphy.Utils.NumString;
+using Unity.Profiling;
 
 namespace Tayx.Graphy.Fps
 {
@@ -23,10 +24,14 @@ namespace Tayx.Graphy.Fps
 
         [SerializeField] private Text m_fpsText = null;
         [SerializeField] private Text m_msText = null;
-
-        [SerializeField] private Text m_avgFpsText = null;
-        [SerializeField] private Text m_onePercentFpsText = null;
-        [SerializeField] private Text m_zero1PercentFpsText = null;
+        [SerializeField] private Text m_msCpuText = null;
+        [SerializeField] private Text m_avgCpuText = null;
+        [SerializeField] private Text m_onePercentCpuText = null;
+        [SerializeField] private Text m_zero1PercentCpuText = null;
+        [SerializeField] private Text m_msGpuText = null;
+        [SerializeField] private Text m_avgGpuText = null;
+        [SerializeField] private Text m_onePercentGpuText = null;
+        [SerializeField] private Text m_zero1PercentGpuText = null;
 
         #endregion
 
@@ -75,20 +80,28 @@ namespace Tayx.Graphy.Fps
                 SetFpsRelatedTextColor( m_fpsText, m_fps );
 
                 // Update ms
-                m_msText.text = m_ms.ToStringNonAlloc( m_msStringFormat );
+                m_msText.text = Mathf.Min(99.9f, m_ms).ToStringNonAlloc( m_msStringFormat );
                 SetFpsRelatedTextColor( m_msText, m_fps );
 
-                // Update 1% fps
-                m_onePercentFpsText.text = ((int) (m_fpsMonitor.OnePercentFPS)).ToStringNonAlloc();
-                SetFpsRelatedTextColor( m_onePercentFpsText, m_fpsMonitor.OnePercentFPS );
+                // Update cpu block
+                m_msCpuText.text = Mathf.Min(99.9f, m_fpsMonitor.CurrentCPU).ToStringNonAlloc( m_msStringFormat );
+                SetMsRelatedTextColor( m_msCpuText, m_fpsMonitor.CurrentCPU );
+                m_onePercentCpuText.text = Mathf.Min(99.9f, m_fpsMonitor.OnePercentCPU).ToStringNonAlloc( m_msStringFormat );
+                SetMsRelatedTextColor( m_onePercentCpuText, m_fpsMonitor.OnePercentCPU );
+                m_zero1PercentCpuText.text = Mathf.Min(99.9f, m_fpsMonitor.Zero1PercentCpu).ToStringNonAlloc( m_msStringFormat );
+                SetMsRelatedTextColor( m_zero1PercentCpuText, m_fpsMonitor.Zero1PercentCpu );
+                m_avgCpuText.text = Mathf.Min(99.9f, m_fpsMonitor.AverageCPU).ToStringNonAlloc( m_msStringFormat );
+                SetMsRelatedTextColor( m_avgCpuText, m_fpsMonitor.AverageCPU );
 
-                // Update 0.1% fps
-                m_zero1PercentFpsText.text = ((int) (m_fpsMonitor.Zero1PercentFps)).ToStringNonAlloc();
-                SetFpsRelatedTextColor( m_zero1PercentFpsText, m_fpsMonitor.Zero1PercentFps );
-
-                // Update avg fps
-                m_avgFpsText.text = ((int) (m_fpsMonitor.AverageFPS)).ToStringNonAlloc();
-                SetFpsRelatedTextColor( m_avgFpsText, m_fpsMonitor.AverageFPS );
+                // Update gpu block
+                m_msGpuText.text = Mathf.Min(99.9f, m_fpsMonitor.CurrentGPU).ToStringNonAlloc( m_msStringFormat );
+                SetMsRelatedTextColor( m_msGpuText, m_fpsMonitor.CurrentGPU );
+                m_onePercentGpuText.text = Mathf.Min(99.9f, m_fpsMonitor.OnePercentGPU).ToStringNonAlloc( m_msStringFormat );
+                SetMsRelatedTextColor( m_onePercentGpuText, m_fpsMonitor.OnePercentGPU );
+                m_zero1PercentGpuText.text = Mathf.Min(99.9f, m_fpsMonitor.Zero1PercentGpu).ToStringNonAlloc( m_msStringFormat );
+                SetMsRelatedTextColor( m_zero1PercentGpuText, m_fpsMonitor.Zero1PercentGpu );
+                m_avgGpuText.text = Mathf.Min(99.9f, m_fpsMonitor.AverageGPU).ToStringNonAlloc( m_msStringFormat );
+                SetMsRelatedTextColor( m_avgGpuText, m_fpsMonitor.AverageGPU );
 
                 // Reset variables
                 m_deltaTime = 0f;
@@ -130,6 +143,22 @@ namespace Tayx.Graphy.Fps
                 text.color = m_graphyManager.GoodFPSColor;
             }
             else if( roundedFps >= m_graphyManager.CautionFPSThreshold )
+            {
+                text.color = m_graphyManager.CautionFPSColor;
+            }
+            else
+            {
+                text.color = m_graphyManager.CriticalFPSColor;
+            }
+        }
+
+        private void SetMsRelatedTextColor( Text text, float ms )
+        {
+            if ( ms <= 16.6f )
+            {
+                text.color = m_graphyManager.GoodFPSColor;
+            }
+            else if ( ms <= 33.3f )
             {
                 text.color = m_graphyManager.CautionFPSColor;
             }
