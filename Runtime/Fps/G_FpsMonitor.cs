@@ -160,11 +160,12 @@ namespace Tayx.Graphy.Fps
             cpuSamples.Push( cpuTime );
             gpuSamples.Push( gpuTime );
 
+            // 2.58 is the z-score for 99% confidence interval
+            // 3.29 is the z-score for 99.9% confidence interval
+
             AverageCPU = cpuSamples.Mean();
             float standardDeviation  = cpuSamples.StandardDeviation();
-            // 2.58 is the z-score for 99% confidence interval
             OnePercentCPU = AverageCPU + standardDeviation * 2.58f;
-            // 3.29 is the z-score for 99.9% confidence interval
             Zero1PercentCpu = AverageCPU + standardDeviation * 3.29f;
 
             AverageGPU = gpuSamples.Mean();
@@ -193,8 +194,8 @@ namespace Tayx.Graphy.Fps
         private void Init()
         {
             fpsSamples = new StatBuffer(m_fpsSamplesCapacity, 30.0f);
-            cpuSamples = new StatBuffer(m_fpsSamplesCapacity, 0.033f);
-            gpuSamples = new StatBuffer(m_fpsSamplesCapacity, 0.033f);
+            cpuSamples = new StatBuffer(m_fpsSamplesCapacity, 33.3f);
+            gpuSamples = new StatBuffer(m_fpsSamplesCapacity, 33.3f);
         }
 
         #endregion
