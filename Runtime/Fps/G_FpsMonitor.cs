@@ -15,6 +15,7 @@ using UnityEngine;
 
 namespace Tayx.Graphy.Fps
 {
+    // A ring buffer that also mainttains the mean and variance
     public class StatBuffer
     {
         float expected;
@@ -25,7 +26,7 @@ namespace Tayx.Graphy.Fps
         int back;
         int size;
 
-        // shift is the expected mean of the values
+        // expected is a guess close to the mean of the values
         public StatBuffer(int length, float expected)
         {
             this.expected = expected;
@@ -43,14 +44,11 @@ namespace Tayx.Graphy.Fps
             {
                 Pop();
             }
-            else
-            {
-                values[back] = value;
-                back = (back + 1) % values.Length;
-                size++;
-                offsetSum += value - expected;
-                offsetVarianceSum += (value - expected) * (value - expected);
-            }
+            values[back] = value;
+            back = (back + 1) % values.Length;
+            size++;
+            offsetSum += value - expected;
+            offsetVarianceSum += (value - expected) * (value - expected);
         }
 
         void Pop()
